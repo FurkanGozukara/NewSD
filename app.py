@@ -7,7 +7,6 @@ import torch
 from typing import List
 from diffusers.utils import numpy_to_pil
 from diffusers import StableCascadeDecoderPipeline, StableCascadePriorPipeline
-from previewer.modules import Previewer
 
 import os
 import datetime
@@ -41,7 +40,6 @@ if not torch.cuda.is_available():
 
 MAX_SEED = np.iinfo(np.int32).max
 MAX_IMAGE_SIZE = 4096
-PREVIEW_IMAGES = True
 
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
