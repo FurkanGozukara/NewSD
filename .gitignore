@@ -1,0 +1,5 @@
+venv
+.git
+.vs
+outputs
+previewer
