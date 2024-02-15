@@ -3,3 +3,6 @@ venv
 .vs
 outputs
 previewer
+repositories
+.vscode
+__pycache__
