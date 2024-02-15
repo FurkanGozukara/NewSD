@@ -7,6 +7,8 @@ import torch
 from typing import List
 from diffusers.utils import numpy_to_pil
 from diffusers import StableCascadeDecoderPipeline, StableCascadePriorPipeline
+from previewer.modules import Previewer
+
 import os
 import datetime
 import json
@@ -25,6 +27,7 @@ args = parser.parse_args()
 share = args.share
 ENABLE_CPU_OFFLOAD = args.lowvram  # Use the offload argument to toggle ENABLE_CPU_OFFLOAD
 USE_TORCH_COMPILE = args.torch_compile  # Use the offload argument to toggle ENABLE_CPU_OFFLOAD
+torch.backends.cuda.matmul.allow_tf32 = True
 
 dtype = torch.bfloat16
 if(args.fp16):
@@ -38,21 +41,24 @@ if not torch.cuda.is_available():
 
 MAX_SEED = np.iinfo(np.int32).max
 MAX_IMAGE_SIZE = 4096
+PREVIEW_IMAGES = True
 
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 if torch.cuda.is_available():
-    prior_pipeline = StableCascadePriorPipeline.from_pretrained("stabilityai/stable-cascade-prior", torch_dtype=dtype)
-    decoder_pipeline = StableCascadeDecoderPipeline.from_pretrained("stabilityai/stable-cascade",  torch_dtype=dtype)
+    
+    prior_pipeline = StableCascadePriorPipeline.from_pretrained("stabilityai/stable-cascade-prior", 
+                                                                torch_dtype=dtype).to(device)     
+    decoder_pipeline = StableCascadeDecoderPipeline.from_pretrained("stabilityai/stable-cascade", torch_dtype=dtype).to(device)
     prior_pipeline.enable_xformers_memory_efficient_attention()
     decoder_pipeline.enable_xformers_memory_efficient_attention()
 
     if ENABLE_CPU_OFFLOAD:
         prior_pipeline.enable_model_cpu_offload()
         decoder_pipeline.enable_model_cpu_offload()
-    else:
-        prior_pipeline.to(device)
-        decoder_pipeline.to(device)
+    # else:
+    #     prior_pipeline.to(device)
+    #     decoder_pipeline.to(device)
 
     if USE_TORCH_COMPILE:
         prior_pipeline.prior = torch.compile(prior_pipeline.prior, mode="reduce-overhead", fullgraph=True)
@@ -87,27 +93,26 @@ def generate(
         if i > 0:  # Update seed for subsequent iterations
             seed = random.randint(0, MAX_SEED)
         generator = torch.Generator().manual_seed(seed)
+        with torch.cuda.amp.autocast(dtype=dtype):
+            prior_output = prior_pipeline(
+                prompt=prompt,
+                height=height,
+                width=width,                                
+                negative_prompt=negative_prompt,
+                guidance_scale=prior_guidance_scale,
+                num_images_per_prompt=batch_size_per_prompt,
+                generator=generator                
+            )
 
-        prior_output = prior_pipeline(
-            prompt=prompt,
-            height=height,
-            width=width,
-            generator=generator,
-            negative_prompt=negative_prompt,
-            guidance_scale=prior_guidance_scale,
-            num_images_per_prompt=batch_size_per_prompt,
-            num_inference_steps=prior_num_inference_steps
-        )
-
-        decoder_output = decoder_pipeline(
-            image_embeddings=prior_output.image_embeddings,
-            prompt=prompt,
-            negative_prompt=negative_prompt,
-            guidance_scale=decoder_guidance_scale,
-            output_type="pil",
-            generator=generator,
-            num_inference_steps=decoder_num_inference_steps
-        ).images
+            decoder_output = decoder_pipeline(
+                image_embeddings=prior_output.image_embeddings,
+                prompt=prompt,
+                num_inference_steps=decoder_num_inference_steps,
+                guidance_scale=decoder_guidance_scale,
+                negative_prompt=negative_prompt,
+                generator=generator,
+                output_type="pil",
+            ).images
 
         # Append generated images to the images list
         images.extend(decoder_output)
