@@ -1,4 +1,4 @@
-git+https://github.com/DEVAIEXP/diffusers-cascade@FixFP16
+diffusers
 accelerate
 safetensors
 transformers
