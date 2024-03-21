@@ -27,6 +27,8 @@ from diffusers.utils import BaseOutput, logging, replace_example_docstring
 from diffusers.utils.torch_utils import randn_tensor
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline
 
+from pipelines.pipeline_common import torch_gc
+
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
@@ -390,7 +392,8 @@ class StableCascadePriorPipelineV2(DiffusionPipeline):
         return_dict: bool = True,
         callback_on_step_end: Optional[Callable[[int, int, Dict], None]] = None,
         callback_on_step_end_tensor_inputs: List[str] = ["latents"],
-        dtype: torch.dtype = torch.float32
+        dtype: torch.dtype = torch.float32,
+        device: torch.device = torch.device('cuda')
     ):
         """
         Function invoked when calling the pipeline for generation.
@@ -464,7 +467,7 @@ class StableCascadePriorPipelineV2(DiffusionPipeline):
         """
 
         # 0. Define commonly used variables
-        device = self._execution_device
+        #device = self._execution_device
         #dtype = next(self.prior.parameters()).dtype
         self._guidance_scale = guidance_scale
         if prompt is not None and isinstance(prompt, str):
@@ -486,7 +489,7 @@ class StableCascadePriorPipelineV2(DiffusionPipeline):
             negative_prompt_embeds_pooled=negative_prompt_embeds_pooled,
             callback_on_step_end_tensor_inputs=callback_on_step_end_tensor_inputs,
         )
-
+        self.text_encoder.to('cuda')
         # 2. Encode caption + images
         (
             prompt_embeds,
@@ -506,6 +509,9 @@ class StableCascadePriorPipelineV2(DiffusionPipeline):
             negative_prompt_embeds_pooled=negative_prompt_embeds_pooled,
         )
 
+        #move encoders to cpu for free memory       
+        self.text_encoder.to('cpu')
+        torch_gc()
         if images is not None:
             image_embeds_pooled, uncond_image_embeds_pooled = self.encode_image(
                 images=images,
@@ -618,7 +624,8 @@ class StableCascadePriorPipelineV2(DiffusionPipeline):
                     negative_prompt_embeds = callback_outputs.pop("negative_prompt_embeds", negative_prompt_embeds)
 
         # Offload all models
-        self.maybe_free_model_hooks()
+        if device.type=='cpu':
+            self.maybe_free_model_hooks()
 
         if output_type == "np":
             latents = latents.cpu().float().numpy()  # float() as bfloat16-> numpy doesnt work

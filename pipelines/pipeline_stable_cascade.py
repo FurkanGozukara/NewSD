@@ -24,6 +24,8 @@ from diffusers.utils.torch_utils import randn_tensor
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline, ImagePipelineOutput
 from diffusers.pipelines.wuerstchen.modeling_paella_vq_model import PaellaVQModel
 
+from pipelines.pipeline_common import torch_gc
+
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
 EXAMPLE_DOC_STRING = """
@@ -143,7 +145,7 @@ class StableCascadeDecoderPipelineV2(DiffusionPipeline):
             text_input_ids = text_inputs.input_ids
             attention_mask = text_inputs.attention_mask
 
-            untruncated_ids = self.tokenizer(prompt, padding="longest", return_tensors="pt").input_ids
+            untruncated_ids = self.tokenizer(prompt, padding="longest", return_tensors="pt").input_ids.to(device)
 
             if untruncated_ids.shape[-1] >= text_input_ids.shape[-1] and not torch.equal(
                 text_input_ids, untruncated_ids
@@ -302,7 +304,8 @@ class StableCascadeDecoderPipelineV2(DiffusionPipeline):
         return_dict: bool = True,
         callback_on_step_end: Optional[Callable[[int, int, Dict], None]] = None,
         callback_on_step_end_tensor_inputs: List[str] = ["latents"],
-        dtype: torch.dtype = torch.float32
+        dtype: torch.dtype = torch.float32,
+        device: torch.device = torch.device('cuda')
     ):
         """
         Function invoked when calling the pipeline for generation.
@@ -371,7 +374,7 @@ class StableCascadeDecoderPipelineV2(DiffusionPipeline):
         """
 
         # 0. Define commonly used variables
-        device = self._execution_device
+        #device = self._execution_device
         #dtype = self.dtype
         self._guidance_scale = guidance_scale
         if is_torch_version("<", "2.2.0") and dtype == torch.bfloat16:
@@ -389,6 +392,7 @@ class StableCascadeDecoderPipelineV2(DiffusionPipeline):
             image_embeddings = torch.cat(image_embeddings, dim=0)
         batch_size = image_embeddings.shape[0]
 
+        self.text_encoder.to('cuda')
         # 2. Encode caption
         if prompt_embeds is None and negative_prompt_embeds is None:
             _, prompt_embeds_pooled, _, negative_prompt_embeds_pooled = self.encode_prompt(
@@ -403,7 +407,9 @@ class StableCascadeDecoderPipelineV2(DiffusionPipeline):
                 negative_prompt_embeds=negative_prompt_embeds,
                 negative_prompt_embeds_pooled=negative_prompt_embeds_pooled,
             )
-
+        #move encoders to cpu for free memory        
+        self.text_encoder.to('cpu')
+        torch_gc()
         # The pooled embeds from the prior are pooled again before being passed to the decoder
         prompt_embeds_pooled = (
             torch.cat([prompt_embeds_pooled, negative_prompt_embeds_pooled])
@@ -481,7 +487,8 @@ class StableCascadeDecoderPipelineV2(DiffusionPipeline):
             images = latents
 
         # Offload all models
-        self.maybe_free_model_hooks()
+        if device.type=='cpu':
+            self.maybe_free_model_hooks()
 
         if not return_dict:
             return images

@@ -332,7 +332,8 @@ def generate(
                     guidance_scale=prior_guidance_scale,
                     num_images_per_prompt=batch_size_per_prompt,
                     generator=generator,
-                    dtype=dtype        
+                    dtype=dtype,
+                    device=device,      
                 )                
 
                 decoder_output = decoder_pipeline(
@@ -347,6 +348,7 @@ def generate(
                     guidance_scale=decoder_guidance_scale,                    
                     generator=generator,
                     dtype=dtype,
+                    device=device,
                     output_type="pil",
                 ).images
 
