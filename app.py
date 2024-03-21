@@ -327,6 +327,7 @@ def generate(
                     #prompt_embeds_pooled=embeddings[1],
                     #negative_prompt_embeds=embeddings[2],
                     #negative_prompt_embeds_pooled=embeddings[3],      
+                    num_inference_steps=prior_num_inference_steps,
                     height=height,
                     width=width,                                                    
                     guidance_scale=prior_guidance_scale,
