@@ -421,7 +421,8 @@ class StableCascadeDecoderPipelineV2(DiffusionPipeline):
 
         # 5. Prepare latents
         latents = self.prepare_latents(
-            image_embeddings, num_images_per_prompt, prompt_embeds.dtype, device, generator, latents, self.scheduler
+            #image_embeddings, num_images_per_prompt, prompt_embeds.dtype, device, generator, latents, self.scheduler
+            image_embeddings, num_images_per_prompt, dtype, device, generator, latents, self.scheduler
         )
 
         # 6. Run denoising loop

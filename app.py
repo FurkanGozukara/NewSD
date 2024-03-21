@@ -59,6 +59,23 @@ model_id = "stabilityai/stable-cascade-prior"
 model_decoder_id = "stabilityai/stable-cascade"
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+pipe_prior_unet = None
+prior_pipeline = None
+pipe_decoder_unet = None
+decoder_pipeline = None
+
+def restart_cpu_offload():
+        prior_pipeline.disable_xformers_memory_efficient_attention()
+        decoder_pipeline.disable_xformers_memory_efficient_attention()               
+        from pipelines.pipeline_common import optionally_disable_offloading
+        optionally_disable_offloading(prior_pipeline)
+        optionally_disable_offloading(decoder_pipeline)
+        gc.collect()
+        torch.cuda.empty_cache()
+        prior_pipeline.enable_model_cpu_offload()
+        decoder_pipeline.enable_model_cpu_offload()
+        prior_pipeline.enable_xformers_memory_efficient_attention()
+        decoder_pipeline.enable_xformers_memory_efficient_attention()
 
 def randomize_seed_fn(seed: int, randomize_seed: bool) -> int:
     if randomize_seed:
@@ -190,74 +207,100 @@ def generate(
     batch_size_per_prompt: int = 2,
     number_of_images_per_prompt: int = 1,  # New parameter
 ):
-    
+    global pipe_prior_unet, prior_pipeline, pipe_decoder_unet, decoder_pipeline
     if torch.cuda.is_available():
-        pipe_encode = types.SimpleNamespace()
-        pipe_encode.unet = StableCascadeUNet.from_pretrained(
-            model_id, subfolder=fr"prior{lite}").to(device, dtypeFP8)
+        #pipe_encode = types.SimpleNamespace()
+        need_restart_cpu_offloading = False
 
-        pipe_encode.tokenizer = CLIPTokenizer.from_pretrained(
-        model_id,
-        subfolder='tokenizer',
-        )
+        # pipe_encode.tokenizer = CLIPTokenizer.from_pretrained(
+        # model_id,
+        # subfolder='tokenizer',
+        # )
 
-        text_encoder_param = {
-                'pretrained_model_name_or_path': model_id,
-                'subfolder': 'text_encoder',
-                'use_safetensors': True,
-                'torch_dtype':dtype,
-        }
-        if dtype == torch.bfloat16:
-            text_encoder_param['variant'] = 'bf16'
-        pipe_encode.text_encoder = CLIPTextModelWithProjection.from_pretrained(**text_encoder_param).to(device)
+        # text_encoder_param = {
+        #         'pretrained_model_name_or_path': model_id,
+        #         'subfolder': 'text_encoder',
+        #         'use_safetensors': True,
+        #         'torch_dtype':dtype,
+        # }
+        # if dtype == torch.bfloat16:
+        #     text_encoder_param['variant'] = 'bf16'
+        # pipe_encode.text_encoder = CLIPTextModelWithProjection.from_pretrained(**text_encoder_param).to(device)
       
-        text_encoder_param = {
+        # text_encoder_param = {
+        #         'pretrained_model_name_or_path': model_id,
+        #         'subfolder': 'text_encoder',
+        #         'use_safetensors': True,
+        #         'torch_dtype': dtype,
+        # }
+        # pipeline_param = {
+        #     'pretrained_model_name_or_path': model_id,
+        #     'use_safetensors': True,
+        #     'torch_dtype': dtype,
+        #     'tokenizer': None,
+        #     'text_encoder': None,             
+        #     'prior': pipe_encode.unet,           
+        # }
+        if prior_pipeline == None:
+            pipe_prior_unet = StableCascadeUNet.from_pretrained(
+            model_id, subfolder=fr"prior{lite}").to(device, dtypeFP8)
+             
+            pipeline_param = {
                 'pretrained_model_name_or_path': model_id,
-                'subfolder': 'text_encoder',
                 'use_safetensors': True,
-                'torch_dtype': dtype,
-        }
-        pipeline_param = {
-            'pretrained_model_name_or_path': model_id,
-            'use_safetensors': True,
-            'torch_dtype': dtype,
-            'tokenizer': None,
-            'text_encoder': None,             
-            'prior': pipe_encode.unet,           
-        }
-        if dtype == torch.bfloat16:
-            pipeline_param['variant'] = 'bf16'
-        prior_pipeline = StableCascadePriorPipelineV2.from_pretrained(**pipeline_param).to(device)
-        
-        
-        with torch.no_grad():                
-            embeddings = encode_prompt(pipe_encode,
-                                        device=device,                                         
-                                        num_images_per_prompt=batch_size_per_prompt,
-                                        prompt=prompt,            
-                                        negative_prompt = negative_prompt)            
-        
-        pipe_decoder_unet = StableCascadeUNet.from_pretrained(
+                'torch_dtype': dtype,   
+                'prior':pipe_prior_unet
+            }
+            # if dtype == torch.bfloat16:
+            #     pipeline_param['variant'] = 'bf16'
+            prior_pipeline = StableCascadePriorPipelineV2.from_pretrained(**pipeline_param).to(device)
+            #prior_pipeline.prior.to(dtypeFP8)
+            
+            # with torch.no_grad():                
+            #     embeddings = encode_prompt(pipe_encode,
+            #                                 device=device,                                         
+            #                                 num_images_per_prompt=batch_size_per_prompt,
+            #                                 prompt=prompt,            
+            #                                 negative_prompt = negative_prompt)            
+            
+            prior_pipeline.enable_xformers_memory_efficient_attention()           
+        else:
+            if ENABLE_CPU_OFFLOAD:
+                need_restart_cpu_offloading =True
+
+        if decoder_pipeline == None:
+            pipe_decoder_unet = StableCascadeUNet.from_pretrained(
             model_decoder_id, subfolder=fr"decoder{lite}").to(device, dtypeFP8)
         
-        pipeline_decoder_param = {
-            'pretrained_model_name_or_path': model_decoder_id,
-            'use_safetensors': True,
-            'torch_dtype': dtype,
-            'tokenizer': None,
-            'text_encoder': None,             
-            'decoder': pipe_decoder_unet,
-        }        
-        decoder_pipeline = StableCascadeDecoderPipelineV2.from_pretrained(**pipeline_decoder_param).to(device)
-       
-        del pipe_encode.tokenizer, pipe_encode.text_encoder, pipe_encode.unet, pipe_decoder_unet
+            # pipeline_decoder_param = {
+            #     'pretrained_model_name_or_path': model_decoder_id,
+            #     'use_safetensors': True,
+            #     'torch_dtype': dtype,
+            #     'tokenizer': None,
+            #     'text_encoder': None,             
+            #     'decoder': pipe_decoder_unet,
+            # } 
+            pipeline_decoder_param = {
+                'pretrained_model_name_or_path': model_decoder_id,
+                'use_safetensors': True,
+                'torch_dtype': dtype,
+                'decoder': pipe_decoder_unet,
+            }        
+            decoder_pipeline = StableCascadeDecoderPipelineV2.from_pretrained(**pipeline_decoder_param,).to(device)
+            #decoder_pipeline.decoder.to(dtypeFP8)
+            #del pipe_encode.tokenizer, pipe_encode.text_encoder, pipe_encode.unet, pipe_decoder_unet
+            decoder_pipeline.enable_xformers_memory_efficient_attention()
+        
+        else:
+            if ENABLE_CPU_OFFLOAD:
+                need_restart_cpu_offloading=True
+
         gc.collect()
         torch.cuda.empty_cache()
-       
-        prior_pipeline.enable_xformers_memory_efficient_attention()    
-        decoder_pipeline.enable_xformers_memory_efficient_attention()
         
-        if ENABLE_CPU_OFFLOAD:
+        if need_restart_cpu_offloading:
+            restart_cpu_offload()
+        elif ENABLE_CPU_OFFLOAD:
             prior_pipeline.enable_model_cpu_offload()
             decoder_pipeline.enable_model_cpu_offload()
         # else:
@@ -277,10 +320,12 @@ def generate(
             generator = torch.Generator().manual_seed(seed)
             with torch.cuda.amp.autocast(dtype=dtype):
                 prior_output = prior_pipeline(
-                    prompt_embeds=embeddings[0],
-                    prompt_embeds_pooled=embeddings[1],
-                    negative_prompt_embeds=embeddings[2],
-                    negative_prompt_embeds_pooled=embeddings[3],      
+                    prompt=prompt,
+                    negative_prompt=negative_prompt,
+                    #prompt_embeds=embeddings[0],
+                    #prompt_embeds_pooled=embeddings[1],
+                    #negative_prompt_embeds=embeddings[2],
+                    #negative_prompt_embeds_pooled=embeddings[3],      
                     height=height,
                     width=width,                                                    
                     guidance_scale=prior_guidance_scale,
@@ -291,10 +336,12 @@ def generate(
 
                 decoder_output = decoder_pipeline(
                     image_embeddings=prior_output.image_embeddings,
-                    prompt_embeds=embeddings[0],
-                    prompt_embeds_pooled=embeddings[1],
-                    negative_prompt_embeds=embeddings[2],
-                    negative_prompt_embeds_pooled=embeddings[3],      
+                    prompt=prompt,
+                    negative_prompt=negative_prompt,
+                    # prompt_embeds=embeddings[0],
+                    # prompt_embeds_pooled=embeddings[1],
+                    # negative_prompt_embeds=embeddings[2],
+                    # negative_prompt_embeds_pooled=embeddings[3],      
                     num_inference_steps=decoder_num_inference_steps,
                     guidance_scale=decoder_guidance_scale,                    
                     generator=generator,
