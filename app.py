@@ -6,12 +6,14 @@ import gradio as gr
 import numpy as np
 import torch
 from typing import List
+
 from transformers import CLIPTokenizer, CLIPTextModelWithProjection
 from pipelines.pipeline_stable_cascade import StableCascadeDecoderPipelineV2
 from pipelines.pipeline_stable_cascade_prior import StableCascadePriorPipelineV2
 from models.unets.unet_stable_cascade import StableCascadeUNet
 from diffusers.utils import logging
 from typing import Optional, List
+
 
 import os
 import datetime
@@ -53,7 +55,6 @@ if not torch.cuda.is_available():
 
 MAX_SEED = np.iinfo(np.int32).max
 MAX_IMAGE_SIZE = 4096
-PREVIEW_IMAGES = True
 
 model_id = "stabilityai/stable-cascade-prior"
 model_decoder_id = "stabilityai/stable-cascade"
