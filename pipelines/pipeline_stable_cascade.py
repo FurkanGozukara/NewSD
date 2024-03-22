@@ -146,7 +146,7 @@ class StableCascadeDecoderPipelineV2(DiffusionPipeline):
             attention_mask = text_inputs.attention_mask
 
             untruncated_ids = self.tokenizer(prompt, padding="longest", return_tensors="pt").input_ids.to(device)
-
+            text_input_ids=text_input_ids.to(device)
             if untruncated_ids.shape[-1] >= text_input_ids.shape[-1] and not torch.equal(
                 text_input_ids, untruncated_ids
             ):
