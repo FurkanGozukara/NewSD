@@ -20,7 +20,8 @@ parser = argparse.ArgumentParser(description="Gradio interface for text-to-image
 parser.add_argument("--share", action="store_true", help="Enable Gradio sharing.")
 parser.add_argument("--lowvram", action="store_true", help="Enable CPU offload for model operations.")
 parser.add_argument("--torch_compile", action="store_true", help="Enable CPU offload for model operations.")
-parser.add_argument("--load_mode", default=None, type=str, choices=["4bit", "8bit", "fp16"], help="Load/Quantization mode for optimization memory consumption")
+parser.add_argument("--fp16", action="store_true", help="Load models in fp16.")
+parser.add_argument("--load_mode", default=None, type=str, choices=["4bit", "8bit"], help="Quantization mode for optimization memory consumption")
 parser.add_argument("--lite", action="store_true", help="Uses Lite unet")
 logger = logging.get_logger(__name__)
 
@@ -36,7 +37,7 @@ torch.backends.cuda.allow_tf32 = False
 need_restart_cpu_offloading = False
 
 dtype = torch.bfloat16
-if(args.load_mode == "fp16"):
+if(args.fp16):
     dtype = torch.float16
 
 dtypeQuantize = dtype
