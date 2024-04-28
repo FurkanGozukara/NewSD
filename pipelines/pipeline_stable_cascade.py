@@ -19,7 +19,7 @@ from transformers import CLIPTextModel, CLIPTokenizer
 
 from models.unets.unet_stable_cascade import StableCascadeUNet
 from diffusers.schedulers import DDPMWuerstchenScheduler
-from diffusers.utils import is_torch_version, logging, replace_example_docstring
+from diffusers.utils import is_torch_version, logging, replace_example_docstring, USE_PEFT_BACKEND
 from diffusers.utils.torch_utils import randn_tensor
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline, ImagePipelineOutput
 from diffusers.pipelines.wuerstchen.modeling_paella_vq_model import PaellaVQModel
@@ -27,7 +27,7 @@ from diffusers.pipelines.wuerstchen.modeling_paella_vq_model import PaellaVQMode
 from pipelines.pipeline_common import torch_gc
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
-
+USE_PEFT_BACKEND = True
 EXAMPLE_DOC_STRING = """
     Examples:
         ```py
