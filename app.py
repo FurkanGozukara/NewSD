@@ -36,9 +36,7 @@ torch.backends.cudnn.allow_tf32 = False
 torch.backends.cuda.allow_tf32 = False
 need_restart_cpu_offloading = False
 
-dtype = torch.bfloat16
-if(args.fp16):
-    dtype = torch.float16
+dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
 
 dtypeQuantize = dtype
 if(load_mode in ('8bit', '4bit')):
@@ -219,8 +217,9 @@ def generate(
 
 
 with gr.Blocks() as app:
-    with gr.Row():
-        gr.Markdown(DESCRIPTION)
+    gr.Markdown("## V8 Stable Cascade by SECourses : 1-Click Installers Latest Version On : https://www.patreon.com/posts/98410661")
+    gr.Markdown("[Stable Cascade](https://stability.ai/news/introducing-stable-cascade) is the latest model of Stability AI based on Würstchen architecture")
+    gr.Markdown("Stable Cascade is compatible with GPUs having as little as 5 GB of memory and can generate high-quality images at resolutions even at 1536x1536 pixels. It supports resolution adjustments in 128-pixel steps, e.g. 1024x1024 or 1152x1024 or 1152x896")
     with gr.Row():
         with gr.Column():
             prompt = gr.Text(
