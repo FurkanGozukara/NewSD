@@ -23,7 +23,7 @@ from transformers import CLIPImageProcessor, CLIPTextModelWithProjection, CLIPTo
 
 from models.unets.unet_stable_cascade import StableCascadeUNet
 from diffusers.schedulers import DDPMWuerstchenScheduler
-from diffusers.utils import BaseOutput, logging, replace_example_docstring
+from diffusers.utils import BaseOutput, logging, replace_example_docstring, USE_PEFT_BACKEND
 from diffusers.utils.torch_utils import randn_tensor
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline
 
@@ -31,7 +31,7 @@ from pipelines.pipeline_common import torch_gc
 
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
-
+USE_PEFT_BACKEND = True
 DEFAULT_STAGE_C_TIMESTEPS = list(np.linspace(1.0, 2 / 3, 20)) + list(np.linspace(2 / 3, 0.0, 11))[1:]
 
 EXAMPLE_DOC_STRING = """
