@@ -237,93 +237,98 @@ def generate(
        
         images = []  # Initialize an empty list to collect generated images
         original_seed = seed  # Store the original seed value
-        original_prompt = prompt
-        original_neg_prompt = negative_prompt
+        
+        # Parse the prompt and split it into multiple prompts if it's multi-line
+        prompt_lines = prompt.split('\n')
+        
+        for line in prompt_lines:
+            original_prompt = line.strip()
+            original_neg_prompt = negative_prompt
 
-        # Use all styles if loop_styles_ck is True, otherwise use only the selected style
-        selected_styles = styles if loop_styles_ck else [(style, "", "")]
-        total_images = len(selected_styles) * number_of_images_per_prompt
-        image_counter = 1
+            # Use all styles if loop_styles_ck is True, otherwise use only the selected style
+            selected_styles = styles if loop_styles_ck else [(style, "", "")]
+            total_images = len(selected_styles) * number_of_images_per_prompt * len(prompt_lines)
+            image_counter = 1
 
-        for style_name in selected_styles:
-            get_name = style_name[0]
-            if(len(get_name) < 2):
-                get_name = style_name
-            style_prompt, style_negative_prompt = styles.get(get_name, ("", ""))
-    
-            # Replace placeholders in the style prompt
-            prompt = style_prompt.replace("{prompt}", original_prompt) if style_prompt else original_prompt
-            negative_prompt = style_negative_prompt if style_negative_prompt else original_neg_prompt
+            for style_name in selected_styles:
+                get_name = style_name[0]
+                if(len(get_name) < 2):
+                    get_name = style_name
+                style_prompt, style_negative_prompt = styles.get(get_name, ("", ""))
+        
+                # Replace placeholders in the style prompt
+                prompt = style_prompt.replace("{prompt}", original_prompt) if style_prompt else original_prompt
+                negative_prompt = style_negative_prompt if style_negative_prompt else original_neg_prompt
 
-            print(f"\nFinal Prompt: {prompt}")       
-            print(f"Final Negative Prompt: {negative_prompt}\n")     
+                print(f"\nFinal Prompt: {prompt}")       
+                print(f"Final Negative Prompt: {negative_prompt}\n")     
 
-            for i in range(number_of_images_per_prompt):
-                if randomize_seed_ck or i > 0:  # Update seed if randomize is checked or for subsequent images
-                    seed = random.randint(0, MAX_SEED)
+                for i in range(number_of_images_per_prompt):
+                    if randomize_seed_ck or i > 0:  # Update seed if randomize is checked or for subsequent images
+                        seed = random.randint(0, MAX_SEED)
 
-                print(f"Image {image_counter}/{total_images} Being Generated")
-                image_counter=image_counter+1
-                generator = torch.Generator().manual_seed(seed)
-                with torch.cuda.amp.autocast(dtype=dtype):
-                    prior_output = prior_pipeline(
-                        prompt=prompt,
-                        negative_prompt=negative_prompt,             
-                        num_inference_steps=prior_num_inference_steps,
-                        height=height,
-                        width=width,                                                    
-                        guidance_scale=prior_guidance_scale,
-                        num_images_per_prompt=batch_size_per_prompt,
-                        generator=generator,
-                        dtype=dtype,
-                        device=device,      
-                    )                
+                    print(f"Image {image_counter}/{total_images} Being Generated")
+                    image_counter=image_counter+1
+                    generator = torch.Generator().manual_seed(seed)
+                    with torch.cuda.amp.autocast(dtype=dtype):
+                        prior_output = prior_pipeline(
+                            prompt=prompt,
+                            negative_prompt=negative_prompt,             
+                            num_inference_steps=prior_num_inference_steps,
+                            height=height,
+                            width=width,                                                    
+                            guidance_scale=prior_guidance_scale,
+                            num_images_per_prompt=batch_size_per_prompt,
+                            generator=generator,
+                            dtype=dtype,
+                            device=device,      
+                        )                
 
-                    decoder_output = decoder_pipeline(
-                        image_embeddings=prior_output.image_embeddings,
-                        prompt=prompt,
-                        negative_prompt=negative_prompt,                    
-                        num_inference_steps=decoder_num_inference_steps,
-                        guidance_scale=decoder_guidance_scale,                    
-                        generator=generator,
-                        dtype=dtype,
-                        device=device,
-                        output_type="pil",
-                    ).images
+                        decoder_output = decoder_pipeline(
+                            image_embeddings=prior_output.image_embeddings,
+                            prompt=prompt,
+                            negative_prompt=negative_prompt,                    
+                            num_inference_steps=decoder_num_inference_steps,
+                            guidance_scale=decoder_guidance_scale,                    
+                            generator=generator,
+                            dtype=dtype,
+                            device=device,
+                            output_type="pil",
+                        ).images
 
-                # Append generated images to the images list
-                images.extend(decoder_output)
+                    # Append generated images to the images list
+                    images.extend(decoder_output)
 
-                # Optionally, save each image
-                output_folder = 'outputs'
-                if not os.path.exists(output_folder):
-                    os.makedirs(output_folder)
-                for image in decoder_output:
-                    # Generate timestamped filename
-                    timestamp = datetime.datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
-                    image_filename = f"{output_folder}/{timestamp}.png"
-                
-                    # Prepare metadata
-                    metadata = {
-                        "Prompt": original_prompt,
-                        "Negative Prompt": original_neg_prompt,
-                        "Style":style,
-                        "Seed": seed,
-                        "Width": width,
-                        "Height": height,
-                        "Prior Guidance Scale": prior_guidance_scale,
-                        "Decoder Guidance Scale": decoder_guidance_scale,
-                        "Prior Inference Steps": prior_num_inference_steps,
-                        "Decoder Inference Steps": decoder_num_inference_steps
-                    }
-                
-                    # Save image with metadata
-                    save_image_with_metadata(image, image_filename, metadata)
-                
-                    if torch.cuda.is_available():
-                        torch.cuda.empty_cache()
+                    # Optionally, save each image
+                    output_folder = 'outputs'
+                    if not os.path.exists(output_folder):
+                        os.makedirs(output_folder)
+                    for image in decoder_output:
+                        # Generate timestamped filename
+                        timestamp = datetime.datetime.now().strftime('%Y_%m_%d_%H_%M_%S_%f')
+                        image_filename = f"{output_folder}/{timestamp}.png"
+                    
+                        # Prepare metadata
+                        metadata = {
+                            "Prompt": original_prompt,
+                            "Negative Prompt": original_neg_prompt,
+                            "Style":style,
+                            "Seed": seed,
+                            "Width": width,
+                            "Height": height,
+                            "Prior Guidance Scale": prior_guidance_scale,
+                            "Decoder Guidance Scale": decoder_guidance_scale,
+                            "Prior Inference Steps": prior_num_inference_steps,
+                            "Decoder Inference Steps": decoder_num_inference_steps
+                        }
+                    
+                        # Save image with metadata
+                        save_image_with_metadata(image, image_filename, metadata)
+                    
+                        if torch.cuda.is_available():
+                            torch.cuda.empty_cache()
 
-            # Return the list of generated images
+        # Return the list of generated images
         return images, seed
     else:
         prior_pipeline = None
@@ -339,7 +344,7 @@ def open_folder():
 
 # Modify the existing Blocks setup to add a dropdown for styles
 with gr.Blocks() as app:
-    gr.Markdown(""" ### Stable Cascade V10 by SECourses : 1-Click Installers Latest Version On : https://www.patreon.com/posts/98410661 
+    gr.Markdown(""" ### Stable Cascade V11 by SECourses : 1-Click Installers Latest Version On : https://www.patreon.com/posts/98410661 
     ### [Stable Cascade](https://stability.ai/news/introducing-stable-cascade) is the latest model of Stability AI based on Würstchen architecture 
     ### Stable Cascade is compatible with GPUs having as little as 5 GB of memory and can generate high-quality images at resolutions even at 1536x1536 pixels. It supports resolution adjustments in 128-pixel steps, e.g. 1024x1024 or 1152x1024 or 1152x896""")
 
@@ -348,7 +353,11 @@ with gr.Blocks() as app:
             with gr.Column():
                 # Main settings column
                 with gr.Row():
-                    prompt = gr.Text(label="Prompt", placeholder="Enter your prompt")
+                    prompt = gr.Textbox(
+                        label="Prompt - Each New Line is Parsed as a New Prompt",
+                            placeholder="Enter your prompt",
+                                lines=3
+                                        )
                 with gr.Row():
                     negative_prompt = gr.Text(label="Negative prompt", placeholder="Enter a Negative Prompt")
                 with gr.Row():
