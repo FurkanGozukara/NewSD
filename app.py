@@ -240,7 +240,7 @@ def generate(
         
         # Parse the prompt and split it into multiple prompts if it's multi-line
         prompt_lines = prompt.split('\n')
-        
+        image_counter = 1
         for line in prompt_lines:
             original_prompt = line.strip()
             original_neg_prompt = negative_prompt
@@ -248,7 +248,7 @@ def generate(
             # Use all styles if loop_styles_ck is True, otherwise use only the selected style
             selected_styles = styles if loop_styles_ck else [(style, "", "")]
             total_images = len(selected_styles) * number_of_images_per_prompt * len(prompt_lines)
-            image_counter = 1
+            
 
             for style_name in selected_styles:
                 get_name = style_name[0]
@@ -344,9 +344,10 @@ def open_folder():
 
 # Modify the existing Blocks setup to add a dropdown for styles
 with gr.Blocks() as app:
-    gr.Markdown(""" ### Stable Cascade V11 by SECourses : 1-Click Installers Latest Version On : https://www.patreon.com/posts/98410661 
-    ### [Stable Cascade](https://stability.ai/news/introducing-stable-cascade) is the latest model of Stability AI based on Würstchen architecture 
-    ### Stable Cascade is compatible with GPUs having as little as 5 GB of memory and can generate high-quality images at resolutions even at 1536x1536 pixels. It supports resolution adjustments in 128-pixel steps, e.g. 1024x1024 or 1152x1024 or 1152x896""")
+    gr.Markdown(""" #### Stable Cascade V12 by SECourses : 1-Click Installers Latest Version On : https://www.patreon.com/posts/98410661 
+    #### [Stable Cascade](https://stability.ai/news/introducing-stable-cascade) is the latest model of Stability AI based on Würstchen architecture - We have 1-Click Installers for Windows, RunPod, Massed Compute, Ubuntu Linux and a Free Kaggle account notebook
+    #### Stable Cascade is compatible with GPUs having as little as 5 GB of memory and can generate high-quality images at resolutions even at 1536x1536 pixels. It supports resolution adjustments in 128-pixel steps, e.g. 1024x1024 or 1152x1024 or 1152x896
+    #### Our APP's Features: Auto save images with metadata (configuration / settings), 275 preset-styles, loop styles, multi-line different prompts, load config from generated images, 4-bit, 8-bit and 16-bit precision, extreme VRAM optimization""")
 
     with gr.Tab("Image Generation"):
         with gr.Row():
