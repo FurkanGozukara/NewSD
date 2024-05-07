@@ -1,4 +1,4 @@
-gradio==4.19.0
+gradio
 diffusers==0.27.0
 accelerate
 safetensors
